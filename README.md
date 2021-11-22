@@ -1,5 +1,15 @@
 # СКРИПТ ДЛЯ СКАЧИВАНИЯ ДИСТРИБУТИВОВ ПЛАТФОРМЫ С ПОРТАЛА releases.1c.ru
 
+Для PowerShell:
+```powershell
+$PLATFORM_VER="8.3.19.1417";.\download1c.ps1 distr\win64
+```
+
+Для bash:
+```bash
+PLATFORM_VER="8.3.19.1417" PLATFORM_TYPE="deb64" ./download1c.sh distr/deb64
+```
+
 Для запуска необходимо задать параметры:
 * Переменные **PORTAL_USER** и **PORTAL_PASS** можно указать в файле скрипта, расскоментировав соответствующие строки,
  или задать через переменные окружения, или в отдельном файле **credentials**

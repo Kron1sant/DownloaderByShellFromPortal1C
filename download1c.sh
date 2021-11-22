@@ -17,6 +17,7 @@ DISTR_PATH=./distr
 
 # Страница с сылками на релиз
 release_download_page_url="https://releases.1c.ru/version_file?nick=Platform83&ver=${PLATFORM_VER}&path=Platform%5c${PLATFORM_VER//\./_}%5c${PLATFORM_TYPE}_${PLATFORM_VER//\./_}.${DISTR_EXTENSION}"
+echo "Страница дистрибутива: $release_download_page_url"
 
 # Получение cookies для портала 1С. Cookies сохраняем во временный файл .portal_1c_cookies.tmp
 execution_code=`wget -qO- https://releases.1c.ru | grep -oP '(?<=input type="hidden" name="execution" value=")[^"]+(?=")'`
@@ -30,10 +31,13 @@ if [ "x$release_url" != "x" ]
 then
     # Скачиваем дистрибутив
     mkdir -p "$DISTR_PATH"
-    wget -O "$DISTR_PATH"/$PLATFORM_TYPE_$PLATFORM_VER.$DISTR_EXTENSION --load-cookies .portal_1c_cookies.tmp $release_url
+    distr_fullname="$DISTR_PATH/$PLATFORM_TYPE_$PLATFORM_VER.$DISTR_EXTENSION"
+    echo "Дистрибутив скачивается ($distr_fullname) Подождите..."
+    wget -O $distr_fullname --load-cookies .portal_1c_cookies.tmp $release_url
 else
     echo "Не удалось получить url-для скачивания"
     [[ `echo $release_download_page_data` =~ "Указанный файл не найден" ]] && echo "Указанный релиз $PLATFORM_VER с расширением $DISTR_EXTENSION не существует для платформы $PLATFORM_TYPE!"
 fi
+echo "Загрузка завершена ($(ls -lh "$distr_fullname" 2> /dev/null | cut -d' ' -f5 2> /dev/null))!"
 # Удаляем файл с cookies
 rm .portal_1c_cookies.tmp
