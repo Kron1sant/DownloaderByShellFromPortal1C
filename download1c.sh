@@ -17,7 +17,7 @@ else
     DISTR_PATH=./distr
 fi
 
-while getopts 'u:p:k:v:t:e:' opt
+while getopts 'u:p:k:v:t:e:q' opt
 do
     case $opt in 
         u) PORTAL_USER=$OPTARG;;
@@ -26,9 +26,9 @@ do
         v) DISTR_VER=$OPTARG;;
         t) DISTR_TYPE=$OPTARG;;
         e) DISTR_EXTENSION=$OPTARG;;
+        q) WGET_QUIET="-q";;
     esac
 done
-
 
 # Параметры, определяющие скачиваемый реализ
 [ -z $DISTR_KIND ] && DISTR_KIND=platform # "platform", "postgres"
@@ -39,9 +39,11 @@ done
 # Страница с сылками на релиз
 case $DISTR_KIND in 
     platform) 
-        release_download_page_url="https://releases.1c.ru/version_file?nick=Platform83&ver=${DISTR_VER}&path=Platform%5c${DISTR_VER//\./_}%5c${DISTR_TYPE}_${DISTR_VER//\./_}.${DISTR_EXTENSION}";;
+        release_download_page_url="https://releases.1c.ru/version_file?nick=Platform83&ver=${DISTR_VER}&path=Platform%5c${DISTR_VER//\./_}%5c${DISTR_TYPE}_${DISTR_VER//\./_}.${DISTR_EXTENSION}"
+        distr_fullname="${DISTR_PATH}/${DISTR_TYPE}_${DISTR_VER//\./_}.${DISTR_EXTENSION}";;
     postgres) 
-        release_download_page_url="https://releases.1c.ru/version_file?nick=AddCompPostgre&ver=${DISTR_VER}&path=AddCompPostgre%5c${DISTR_VER//[\.-]/_}%5cpostgresql_${DISTR_VER//-/_}_${DISTR_TYPE}.${DISTR_EXTENSION}";;
+        release_download_page_url="https://releases.1c.ru/version_file?nick=AddCompPostgre&ver=${DISTR_VER}&path=AddCompPostgre%5c${DISTR_VER//[\.-]/_}%5cpostgresql_${DISTR_VER//-/_}_${DISTR_TYPE}.${DISTR_EXTENSION}"
+        distr_fullname="$DISTR_PATH/postgresql_${DISTR_VER//-/_}_${DISTR_TYPE}.${DISTR_EXTENSION}";;
     *) 
         echo "Некорректный тип дистрибутива: $DISTR_KIND"
         exit 1;;
@@ -53,6 +55,16 @@ execution_code=`wget -qO- https://releases.1c.ru | grep -oP '(?<=input type="hid
 post_data="username=${PORTAL_USER}&password=${PORTAL_PASS}&execution=${execution_code}&_eventId=submit"
 wget -qO- --keep-session-cookies --save-cookies .portal_1c_cookies.tmp --post-data $post_data https://login.1c.ru/login > /dev/null
 
+# Ждем некоторое время, перед обращением к странице с дистрибутивами. 
+# Без этого может быть риск, что загрузка не удастся
+sleep 2
+
+if [ ! -e .portal_1c_cookies.tmp ]
+then
+    echo "Не удалось получить cookies. Вероятно некорректная пара Логин/Пароль!"
+    exit
+fi
+
 # На странице с ссылками на релиз, находим сгенерированный URL, ведущий к дистрибутиву
 release_download_page_data=`wget -qO- --load-cookies .portal_1c_cookies.tmp $release_download_page_url`
 release_url=`echo $release_download_page_data | grep -oP '(?<=a href=")[^"]+(?=">Скачать дистрибутив<)'`
@@ -60,12 +72,19 @@ if [ "x$release_url" != "x" ]
 then
     # Скачиваем дистрибутив
     mkdir -p "$DISTR_PATH"
-    distr_fullname="$DISTR_PATH/$DISTR_TYPE_$DISTR_VER.$DISTR_EXTENSION"
     echo "Дистрибутив скачивается ($distr_fullname) Подождите..."
-    wget -O $distr_fullname --load-cookies .portal_1c_cookies.tmp $release_url
+    wget $WGET_QUIET -O $distr_fullname --load-cookies .portal_1c_cookies.tmp $release_url
 else
     echo "Не удалось получить url-для скачивания"
-    [[ `echo $release_download_page_data` =~ "Указанный файл не найден" ]] && echo "Указанный релиз $DISTR_VER с расширением $DISTR_EXTENSION не существует для платформы $DISTR_TYPE!"
+    if [[ `echo $release_download_page_data` =~ "Указанный файл не найден" ]]
+    then
+        echo "Указанный релиз $DISTR_VER с расширением $DISTR_EXTENSION не существует для платформы $DISTR_TYPE!"
+    else
+        echo "Возможно проблемы с доступом к сайту"
+    fi
+    # Удаляем файл с cookies
+    rm .portal_1c_cookies.tmp
+    exit
 fi
 echo "Загрузка завершена ($(ls -lh "$distr_fullname" 2> /dev/null | cut -d' ' -f5 2> /dev/null))!"
 # Удаляем файл с cookies
